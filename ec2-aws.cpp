@@ -14,12 +14,14 @@
 #include <iostream>
 
 //524288 next log2
-#define MAX_TX 345600
-#define MAX_BX 1440
+//#define MAX_TX 345600
+#define MAX_TX 100
+#define MAX_BX 100
 
 int tx_ind = 0;
 int bx_ind = 0;
-int file_cnt = 0;
+int file_cnt_tx = 0;
+int file_cnt_bx = 0;
 
 using easywsclient::WebSocket;
 std::string raw_tx_data, raw_block_data;
@@ -59,43 +61,25 @@ void new_tx(const std::string & message){
     // dump!
     std::ofstream dump_file;
     std::string filename("dump_tx_");
-    filename += std::to_string(file_cnt);
+    filename += std::to_string(file_cnt_tx);
     filename += ".txt";
     dump_file.open(filename);
 
     for (int i = 0; i < tx_ind; i++){
-      dump_file << "### TRANSACTION LOG START ###\n";
+      dump_file << "#START#\n";
       dump_file << tx_arr[i] + "\n";
-      dump_file << "### TRANSACTION LOG TS ###\n";
+      dump_file << "#TS#\n";
       dump_file << tx_time_stamp[i];
-      dump_file << "### TRANSACTION LOG END ###\n";
+      dump_file << "#END#\n";
     }
+
+    file_cnt_tx++;
+    printf("File dump TX %d\n", file_cnt_tx);
+    fprintf(stderr, "File dump TX %d\n", file_cnt_tx);
 
     dump_file.close();
 
-    std::ofstream dump_file2;
-    std::string filename2("dump_bx_");
-    filename2 += std::to_string(file_cnt);
-    filename2 += ".txt";
-    dump_file2.open(filename2);
-
-    int local_bx_ind = bx_ind;
-    for (int i = 0; i < local_bx_ind; i++){
-      dump_file2 << "### BLOCK LOG START ###\n";
-      dump_file2 << bx_arr[i] + "\n";
-      dump_file2 << "### BLOCK LOG TS ###\n";
-      dump_file2 << bx_time_stamp[i];
-      dump_file2 << "### BLOCK LOG END ###\n";
-    }
-
-    dump_file2.close();
-
-    file_cnt++;
-    printf("File dump %d\n", file_cnt);
     tx_ind = 0;
-
-    // get mutex
-    bx_ind = 0;
   }
 }
 
@@ -103,6 +87,29 @@ void new_block(const std::string & message){
   bx_arr[bx_ind] = message;
   bx_time_stamp[bx_ind] = time_stamp_to_string(std::chrono::system_clock::now());
   bx_ind++;
+
+  if (bx_ind == 1){
+    std::ofstream dump_file2;
+    std::string filename2("dump_bx_");
+    filename2 += std::to_string(file_cnt_bx);
+    filename2 += ".txt";
+    dump_file2.open(filename2);
+
+    for (int i = 0; i < bx_ind; i++){
+      dump_file2 << "#START#\n";
+      dump_file2 << bx_arr[i] + "\n";
+      dump_file2 << "#TS#\n";
+      dump_file2 << bx_time_stamp[i];
+      dump_file2 << "#END#\n";
+    }
+
+    file_cnt_bx++;
+    printf("File dump BX %d\n", file_cnt_bx);
+    fprintf(stderr, "File dump BX %d\n", file_cnt_bx);
+
+    dump_file2.close();
+  }
+  bx_ind = 0;
 }
 
 void socket_transactions_connect(){
