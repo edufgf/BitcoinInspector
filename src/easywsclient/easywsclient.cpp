@@ -73,8 +73,7 @@
 #include <string>
 
 #include "easywsclient.hpp"
-#include <QDebug>
-
+        
 using easywsclient::Callback_Imp;
 using easywsclient::BytesCallback_Imp;
 
@@ -219,7 +218,8 @@ class _RealWebSocket : public easywsclient::WebSocket
 
                 readyState = CLOSED;
                 //qDebug() << "Socket close! " << cnt++ << "\n";
-                fputs(ret < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
+                fputs(ret < 0 ? "Connection error 1!\n" : "Connection closed 1!\n", stderr);
+                break;
             }
             else {
                 rxbuf.resize(N + ret);
@@ -234,7 +234,7 @@ class _RealWebSocket : public easywsclient::WebSocket
             else if (ret <= 0) {
                 closesocket(sockfd);
                 readyState = CLOSED;
-                fputs(ret < 0 ? "Connection error!\n" : "Connection closed!\n", stderr);
+                fputs(ret < 0 ? "Connection error 2!\n" : "Connection closed 2!\n", stderr);
                 break;
             }
             else {

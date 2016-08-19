@@ -113,95 +113,105 @@ void new_block(const std::string & message){
 }
 
 void socket_transactions_connect(){
-    WebSocket::pointer websocket = WebSocket::from_url("ws://ws.blockchain.info/inv");
-    assert(websocket);
-    websocket->send("{\"op\":\"unconfirmed_sub\"}");
+    int retry = 0;
     int tx_count = 0;
+    while(true){
+      WebSocket::pointer websocket = WebSocket::from_url("ws://ws.blockchain.info/inv");
+      assert(websocket);
+      websocket->send("{\"op\":\"unconfirmed_sub\"}");
+      
+      std::chrono::time_point<std::chrono::system_clock> start_t, end_t;
+      start_t = std::chrono::system_clock::now();
 
-    std::chrono::time_point<std::chrono::system_clock> start_t, end_t;
-    start_t = std::chrono::system_clock::now();
+      while (websocket->getReadyState() != WebSocket::CLOSED) {
+        end_t = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end_t-start_t;
 
-    while (websocket->getReadyState() != WebSocket::CLOSED) {
-      end_t = std::chrono::system_clock::now();
-      std::chrono::duration<double> elapsed_seconds = end_t-start_t;
+        if (elapsed_seconds.count() > 30) {
+            websocket->sendPing();
+            start_t = std::chrono::system_clock::now();
+        }
 
-      if (elapsed_seconds.count() > 30) {
-          websocket->sendPing();
-          start_t = std::chrono::system_clock::now();
+        websocket->poll(-1);
+        websocket->dispatch(handle_transaction_message);
+
+        // No new message.
+        if (raw_tx_data == "") continue;
+
+        // New message.
+        new_tx(raw_tx_data);
+        tx_count++;
+
+        start_t = std::chrono::system_clock::now();
+        raw_tx_data = "";
       }
 
-      websocket->poll(-1);
-      websocket->dispatch(handle_transaction_message);
-
-      // No new message.
-      if (raw_tx_data == "") continue;
-
-      // New message.
-      new_tx(raw_tx_data);
-      tx_count++;
-
-      start_t = std::chrono::system_clock::now();
-      raw_tx_data = "";
+      printf("Closed Transactions Socket %d\n", retry++);
+      delete websocket;
     }
-
-    printf("Closed Transactions Socket\n");
-    delete websocket;
 }
 
 void socket_blocks_connect(){
-    WebSocket::pointer websocket = WebSocket::from_url("ws://ws.blockchain.info/inv");
-    assert(websocket);
-    websocket->send("{\"op\":\"ping_block\"}");
+    int retry = 0;
     int block_count = 0;
 
-    while (websocket->getReadyState() != WebSocket::CLOSED) {
-      websocket->poll(-1);
-      websocket->dispatch(handle_block_message);
-      // No new message.
-      if (raw_block_data != ""){
+    while(true){
+      WebSocket::pointer websocket = WebSocket::from_url("ws://ws.blockchain.info/inv");
+      assert(websocket);
+
+      if (retry == 0){
+        websocket->send("{\"op\":\"ping_block\"}");
+
+        while (websocket->getReadyState() != WebSocket::CLOSED) {
+          websocket->poll(-1);
+          websocket->dispatch(handle_block_message);
+          // No new message.
+          if (raw_block_data != ""){
+            // New message.
+            new_block(raw_block_data);
+            block_count++;
+
+            raw_block_data = "";
+            break;
+          } else {
+            continue;
+          }
+        }
+      }
+
+      websocket->send("{\"op\":\"blocks_sub\"}");
+
+      std::chrono::time_point<std::chrono::system_clock> start_t, end_t;
+      start_t = std::chrono::system_clock::now();
+
+      while (websocket->getReadyState() != WebSocket::CLOSED) {
+        end_t = std::chrono::system_clock::now();
+        std::chrono::duration<double> elapsed_seconds = end_t-start_t;
+
+        if (elapsed_seconds.count() > 30) {
+            websocket->sendPing();
+            //printf("ping\n");
+            start_t = std::chrono::system_clock::now();
+        }
+
+        websocket->poll(30000);
+        websocket->dispatch(handle_block_message);
+
+        // No new message.
+        if (raw_block_data == "") continue;
+
         // New message.
         new_block(raw_block_data);
         block_count++;
 
+        start_t = std::chrono::system_clock::now();
+
         raw_block_data = "";
-        break;
-      } else {
-          continue;
-      }
-    }
-
-    websocket->send("{\"op\":\"blocks_sub\"}");
-
-    std::chrono::time_point<std::chrono::system_clock> start_t, end_t;
-    start_t = std::chrono::system_clock::now();
-
-    while (websocket->getReadyState() != WebSocket::CLOSED) {
-      end_t = std::chrono::system_clock::now();
-      std::chrono::duration<double> elapsed_seconds = end_t-start_t;
-
-      if (elapsed_seconds.count() > 30) {
-          websocket->sendPing();
-          //printf("ping\n");
-          start_t = std::chrono::system_clock::now();
       }
 
-      websocket->poll(30000);
-      websocket->dispatch(handle_block_message);
-
-      // No new message.
-      if (raw_block_data == "") continue;
-
-      // New message.
-      new_block(raw_block_data);
-      block_count++;
-
-      start_t = std::chrono::system_clock::now();
-
-      raw_block_data = "";
+      delete websocket;
+      printf("Closed Blocks Socket %d\n", retry++);
     }
-
-    delete websocket;
-    printf("Closed Blocks Socket\n");
 }
 
 int main(int argc, char *argv[]){
